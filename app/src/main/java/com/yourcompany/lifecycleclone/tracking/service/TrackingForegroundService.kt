@@ -21,6 +21,10 @@ import com.google.android.gms.location.Priority
 import com.yourcompany.lifecycleclone.R
 import com.yourcompany.lifecycleclone.core.db.AppDatabase
 import com.yourcompany.lifecycleclone.tracking.visits.VisitSessionManager
+import kotlinx.coroutines.launch
+import com.yourcompany.lifecycleclone.tracking.geofence.GeofenceManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 
 /**
  * Foreground service responsible for acquiring location data in a battery‑friendly manner.  It
@@ -49,8 +53,18 @@ class TrackingForegroundService : Service() {
         // Initialise database and session manager.
         val db = AppDatabase.getInstance(applicationContext)
         visitSessionManager = VisitSessionManager(db.visitDao(), db.placeDao())
+        // Expose session manager for geofence broadcast receiver
+        sessionManager = visitSessionManager
         startForegroundService()
         requestLocationUpdates()
+
+        // Register geofences for all saved places so transitions can trigger visit updates.
+        // Because getAll() is suspend, launch a coroutine on IO dispatcher.
+        val geofenceManager = GeofenceManager(this)
+        CoroutineScope(Dispatchers.IO).launch {
+            val savedPlaces = db.placeDao().getAll()
+            geofenceManager.registerGeofences(savedPlaces)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -62,6 +76,8 @@ class TrackingForegroundService : Service() {
         super.onDestroy()
         fusedClient.removeLocationUpdates(locationCallback)
         visitSessionManager.endCurrentVisit()
+        // Clear the static reference to the session manager
+        sessionManager = null
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -109,12 +125,10 @@ class TrackingForegroundService : Service() {
     private fun requestLocationUpdates() {
         val request = LocationRequest.Builder(
             Priority.PRIORITY_BALANCED_POWER_ACCURACY,
-            /* intervalMillis = */ 10_000L
-        )
-            .setMinUpdateIntervalMillis(10_000L) // fastest interval
-            .setMinUpdateDistanceMeters(50f)     // only update if moved 50m
+            10_000L
+        ).setMinUpdateIntervalMillis(10_000L)
+            .setMinUpdateDistanceMeters(50f)
             .build()
-
         fusedClient.requestLocationUpdates(
             request,
             locationCallback,
@@ -124,5 +138,35 @@ class TrackingForegroundService : Service() {
 
     companion object {
         private const val NOTIFICATION_ID = 1001
+
+        /**
+         * Holds a reference to the current [VisitSessionManager] so that geofence events can
+         * update visits even when the service instance isn't directly accessible.  It will be
+         * set when the service is created and cleared when the service is destroyed.
+         */
+        @Volatile
+        private var sessionManager: VisitSessionManager? = null
+
+        /**
+         * Handles geofence transition events forwarded by [GeofenceBroadcastReceiver].  This
+         * method updates the visit timeline according to the transition type: entering a
+         * geofence starts a new visit for that place, while exiting ends the current visit.
+         */
+        fun handleGeofenceEvent(context: Context, event: com.google.android.gms.location.GeofencingEvent) {
+            val transition = event.geofenceTransition
+            val triggeredGeofences = event.triggeringGeofences ?: return
+            val manager = sessionManager ?: return
+            val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO)
+            triggeredGeofences.forEach { geofence ->
+                val placeId = geofence.requestId.toLongOrNull() ?: return@forEach
+                if (transition == com.google.android.gms.location.Geofence.GEOFENCE_TRANSITION_ENTER) {
+                    scope.launch {
+                        manager.startVisitForPlace(placeId)
+                    }
+                } else if (transition == com.google.android.gms.location.Geofence.GEOFENCE_TRANSITION_EXIT) {
+                    manager.endCurrentVisit()
+                }
+            }
+        }
     }
 }

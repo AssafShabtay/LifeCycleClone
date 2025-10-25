@@ -24,6 +24,10 @@ class VisitSessionManager(
     // The ID of the currently active visit, if any.  When null no visit is ongoing.
     private var currentVisitId: Long? = null
 
+    // The place ID associated with the current visit.  Helps avoid starting a new visit if
+    // successive location samples remain within the same place.
+    private var currentPlaceId: Long? = null
+
     // A simple job that can be cancelled to stop any long‑running operations. Not used yet.
     private var trackingJob: Job? = null
 
@@ -35,22 +39,75 @@ class VisitSessionManager(
      */
     fun onLocationSample(location: Location) {
         scope.launch {
-            // TODO: Determine if this location is inside an existing place radius.  If not,
-            // create a new place and geofence.  For demonstration we simply insert a dummy
-            // visit when no visit is in progress and end it after a fixed interval.
-            if (currentVisitId == null) {
-                val newVisit = VisitEntity(
-                    placeOwnerId = 0L, // TODO: replace with real place ID lookup
-                    startTime = System.currentTimeMillis(),
-                    confidence = 100
-                )
-                val id = visitDao.insertVisit(newVisit)
-                currentVisitId = id
+            // Determine the nearest place within its geofence radius.
+            val places = placeDao.getAll()
+            var matchedPlace: com.yourcompany.lifecycleclone.core.model.PlaceEntity? = null
+            for (place in places) {
+                val dest = Location("place").apply {
+                    latitude = place.latitude
+                    longitude = place.longitude
+                }
+                val distance = location.distanceTo(dest)
+                if (distance <= place.radiusMeters) {
+                    matchedPlace = place
+                    break
+                }
+            }
+            if (matchedPlace != null) {
+                // We're inside an existing place.
+                if (currentPlaceId == matchedPlace.placeId) {
+                    // Same place, just update end time in database when we eventually leave.
+                    return@launch
+                } else {
+                    // Entered a different place.  Close current visit if exists and start a new one.
+                    endCurrentVisit()
+                    val visit = VisitEntity(
+                        placeOwnerId = matchedPlace.placeId,
+                        startTime = System.currentTimeMillis(),
+                        confidence = 100
+                    )
+                    currentVisitId = visitDao.insertVisit(visit)
+                    currentPlaceId = matchedPlace.placeId
+                }
             } else {
-                // In a real implementation we would update the visit or maybe end it if the
-                // user moves away from the place.  For now we leave it unchanged.
+                // Not inside any known place.  Close existing visit and create a new place.
+                endCurrentVisit()
+                // Create a new unknown place at this location.
+                val newPlace = com.yourcompany.lifecycleclone.core.model.PlaceEntity(
+                    label = "Unknown Place",
+                    latitude = location.latitude,
+                    longitude = location.longitude,
+                    radiusMeters = 200f,
+                    category = "unknown",
+                    colorArgb = (0xFF000000 or kotlin.random.Random.nextInt().toLong()).toLong()
+                )
+                val placeId = placeDao.insert(newPlace)
+                // Start a new visit associated with the new place.
+                val newVisit = VisitEntity(
+                    placeOwnerId = placeId,
+                    startTime = System.currentTimeMillis(),
+                    confidence = 80
+                )
+                currentVisitId = visitDao.insertVisit(newVisit)
+                currentPlaceId = placeId
             }
         }
+    }
+
+    /**
+     * Starts a new visit at the specified [placeId].  Any currently active visit will be
+     * closed before the new visit is created.  This method is used by geofence events to
+     * ensure visits reflect enter/exit transitions.
+     */
+    suspend fun startVisitForPlace(placeId: Long) {
+        endCurrentVisit()
+        val visit = VisitEntity(
+            placeOwnerId = placeId,
+            startTime = System.currentTimeMillis(),
+            confidence = 90
+        )
+        currentVisitId = visitDao.insertVisit(visit)
+        currentPlaceId = placeId
     }
 
     /**
@@ -62,6 +119,7 @@ class VisitSessionManager(
             currentVisitId?.let { visitId ->
                 visitDao.endVisit(visitId, System.currentTimeMillis())
                 currentVisitId = null
+                currentPlaceId = null
             }
         }
     }

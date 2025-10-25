@@ -23,20 +23,20 @@ import com.yourcompany.lifecycleclone.insights.CategoryBreakdown
 fun DonutChart(
     segments: List<CategoryBreakdown>,
     modifier: Modifier = Modifier,
-    diameter: Dp = 200.dp // <-- renamed from `size`
+    diameter: Dp = 200.dp
 ) {
-    Canvas(
-        modifier = modifier.size(diameter) // still use it to size the Canvas
-    ) {
+    Canvas(modifier = modifier.size(diameter)) {
+        // totalMinutes must not be 0 to avoid NaN sweeps
         val totalMinutes = segments.sumOf { it.totalMinutes }.coerceAtLeast(1)
+
         var startAngle = -90f
 
-        // NOW `size` here is DrawScope.size (androidx.compose.ui.geometry.Size)
-        // which has width, height, and the extension property `minDimension`
+        // `size` here is DrawScope.size (in px) now that our param isn't called `size`
         val strokeWidth = size.minDimension * 0.15f
 
         segments.forEach { segment ->
             val sweep = (segment.totalMinutes.toFloat() / totalMinutes.toFloat()) * 360f
+            // Force opaque color from hash (ensures alpha = 0xFF)
             val color = Color(segment.category.hashCode() or 0xFF000000.toInt())
 
             drawArc(

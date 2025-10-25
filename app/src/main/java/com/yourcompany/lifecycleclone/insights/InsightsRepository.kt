@@ -38,6 +38,42 @@ class InsightsRepository(private val visitDao: VisitDao) {
             )
         }
     }
+
+    /**
+     * Computes a basic correlation between the user's sleep sessions and their last recorded
+     * activity before each sleep.  For each sleep session in the given interval this method
+     * fetches the most recent visit that ended before the sleep start time and counts the
+     * occurrences of each category.  The returned list is sorted in descending order of
+     * frequency and includes the fraction of all sleep sessions that followed each category.
+     *
+     * This simple heuristic does not take into account sleep quality or duration.  In a
+     * production implementation you might weight correlations by sleep quality or look at
+     * multiple visits preceding sleep.
+     */
+    suspend fun getSleepCorrelations(
+        from: Long,
+        to: Long,
+        sleepSessionDao: com.yourcompany.lifecycleclone.core.db.SleepSessionDao
+    ): List<SleepCorrelation> = withContext(Dispatchers.IO) {
+        val sessions = sleepSessionDao.getSessionsInRange(from, to)
+        if (sessions.isEmpty()) return@withContext emptyList<SleepCorrelation>()
+        val counts = mutableMapOf<String, Int>()
+        for (session in sessions) {
+            // Find the last visit before the sleep start
+            val lastVisit = visitDao.getLastVisitBefore(session.startTime)
+            lastVisit?.let { visit ->
+                counts[visit.placeCategory] = (counts[visit.placeCategory] ?: 0) + 1
+            }
+        }
+        val total = sessions.size
+        counts.entries.map { (category, count) ->
+            SleepCorrelation(
+                category = category,
+                count = count,
+                fraction = count.toFloat() / total.toFloat()
+            )
+        }.sortedByDescending { it.count }
+    }
 }
 
 /**

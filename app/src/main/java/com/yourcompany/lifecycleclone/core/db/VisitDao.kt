@@ -32,6 +32,24 @@ interface VisitDao {
         """
     )
     suspend fun getVisitsInRange(from: Long, to: Long): List<VisitWithPlace>
+
+    /**
+     * Returns the most recent visit (including its associated place) that ended on or before
+     * [time].  This is useful for correlating activities immediately preceding an event
+     * such as sleep.  If no visit has ended before the given time, `null` is returned.
+     */
+    @Query(
+        """
+        SELECT v.visitId, v.placeOwnerId, v.startTime, v.endTime, v.confidence,
+               p.label AS placeLabel, p.category AS placeCategory, p.colorArgb AS placeColor
+        FROM visits v
+        INNER JOIN places p ON v.placeOwnerId = p.placeId
+        WHERE v.endTime IS NOT NULL AND v.endTime <= :time
+        ORDER BY v.endTime DESC
+        LIMIT 1
+        """
+    )
+    suspend fun getLastVisitBefore(time: Long): VisitWithPlace?
 }
 
 /**

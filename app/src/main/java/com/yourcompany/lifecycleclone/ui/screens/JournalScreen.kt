@@ -1,30 +1,55 @@
 package com.yourcompany.lifecycleclone.ui.screens
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import kotlinx.serialization.json.Json
 
 /**
- * Journal screen providing a weekly recap of the user's time and a photo gallery.  The real
- * implementation will query the WeeklyJournalEntity table and display summaries of hours spent
- * along with selected photos from the user's device.
+ * Journal screen showing a weekly summary of time spent in various categories.  It loads the
+ * summary from a [JournalViewModel] and displays the summary text along with any photo URIs.
  */
 @Composable
 fun JournalScreen(navController: NavController) {
+    val viewModel: JournalViewModel = viewModel(factory = JournalViewModel.Factory)
+    val journal = viewModel.journal.collectAsState().value
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+            .padding(16.dp)
     ) {
-        Text("Weekly Journal")
-        Text("A snapshot of your last 7 days will appear here.")
-        Text("TODO: implement photo selection and summary generation.")
+        Text(
+            text = "Weekly Journal",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        if (journal == null) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("Generating weekly summary…")
+            }
+        } else {
+            // Decode summary lines from JSON (stored as JSON string)
+            val summaryLines: String = Json.decodeFromString(journal.summaryJson)
+            Text(summaryLines)
+            // Decode photo URIs; currently empty list
+            val photos: List<String> = Json.decodeFromString(journal.photoUrisJson)
+            if (photos.isNotEmpty()) {
+                Text("Photos:")
+                photos.forEach { uri ->
+                    Text(uri, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
     }
 }

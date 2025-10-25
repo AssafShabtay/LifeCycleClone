@@ -1,8 +1,6 @@
 package com.yourcompany.lifecycleclone.health
 
 import android.content.Context
-import android.os.Build
-import androidx.annotation.RequiresApi
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.records.SleepSessionRecord
@@ -31,7 +29,6 @@ class HealthConnectRepository(
      * Health Connect is not available on the device or permission has not been granted, this
      * method will return an empty list.
      */
-    @RequiresApi(Build.VERSION_CODES.O)
     suspend fun refreshSleepSessions(fromEpochMillis: Long, toEpochMillis: Long): List<SleepSessionEntity> = withContext(Dispatchers.IO) {
         try {
             val request = ReadRecordsRequest(
