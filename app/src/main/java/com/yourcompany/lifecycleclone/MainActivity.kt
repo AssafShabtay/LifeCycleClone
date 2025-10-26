@@ -1,14 +1,15 @@
 package com.yourcompany.lifecycleclone
 
-import android.os.Bundle
 import android.Manifest
 import android.content.pm.PackageManager
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
+import android.os.Build
+import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.core.content.ContextCompat
 import com.yourcompany.lifecycleclone.ui.LifeCycleCloneApp
 
 /**
@@ -16,10 +17,22 @@ import com.yourcompany.lifecycleclone.ui.LifeCycleCloneApp
  * delegates the UI to [LifeCycleCloneApp].
  */
 class MainActivity : ComponentActivity() {
+
+    private val foregroundPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            maybeRequestBackgroundLocation()
+        }
+
+    private val backgroundLocationLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (!granted) {
+                // Production apps could explain why "Always Allow" improves automatic tracking.
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Request runtime permissions required for location, activity recognition and media access.
-        requestRequiredPermissions()
+        requestRuntimePermissions()
         setContent {
             MaterialTheme {
                 Surface {
@@ -29,41 +42,55 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun requestRequiredPermissions() {
-        val permissions = mutableListOf<String>()
-        // Fine/coarse location for foreground tracking
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            permissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
-        }
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION)
-        }
-        // Background location for geofences (Android 10+ requires separate request)
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            permissions.add(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-        }
-        // Activity recognition for motion detection
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACTIVITY_RECOGNITION) != PackageManager.PERMISSION_GRANTED) {
-            permissions.add(Manifest.permission.ACTIVITY_RECOGNITION)
-        }
-        // Media read permissions for journal photos
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
-            permissions.add(Manifest.permission.READ_MEDIA_IMAGES)
-        }
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED) {
-            permissions.add(Manifest.permission.READ_MEDIA_VIDEO)
-        }
-        if (permissions.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, permissions.toTypedArray(), 0)
+    private fun requestRuntimePermissions() {
+        val foregroundPermissions = collectForegroundPermissions()
+        if (foregroundPermissions.isNotEmpty()) {
+            foregroundPermissionLauncher.launch(foregroundPermissions.toTypedArray())
+        } else {
+            maybeRequestBackgroundLocation()
         }
     }
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        // In a real implementation you might show an explanation if critical permissions are denied.
+    private fun collectForegroundPermissions(): List<String> {
+        val permissions = mutableListOf<String>()
+        if (!hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)) {
+            permissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+        if (!hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION)) {
+            permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            !hasPermission(Manifest.permission.ACTIVITY_RECOGNITION)
+        ) {
+            permissions.add(Manifest.permission.ACTIVITY_RECOGNITION)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (!hasPermission(Manifest.permission.POST_NOTIFICATIONS)) {
+                permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            if (!hasPermission(Manifest.permission.READ_MEDIA_IMAGES)) {
+                permissions.add(Manifest.permission.READ_MEDIA_IMAGES)
+            }
+            if (!hasPermission(Manifest.permission.READ_MEDIA_VIDEO)) {
+                permissions.add(Manifest.permission.READ_MEDIA_VIDEO)
+            }
+        }
+        return permissions
+    }
+
+    private fun maybeRequestBackgroundLocation() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+        if (!hasForegroundLocationPermission()) return
+        if (hasPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION)) return
+        backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+    }
+
+    private fun hasForegroundLocationPermission(): Boolean {
+        return hasPermission(Manifest.permission.ACCESS_FINE_LOCATION) ||
+            hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
+    }
+
+    private fun hasPermission(permission: String): Boolean {
+        return ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
     }
 }

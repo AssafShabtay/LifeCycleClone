@@ -4,11 +4,15 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
-    <!--  Activity recognition permission for detecting walking/driving transitions.  -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- Activity recognition permission for detecting walking/driving transitions. -->
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION"/>
-    <!--  Media read permissions for importing user photos into the weekly journal.  -->
+    <!-- Media read permissions for importing user photos into the weekly journal. -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
+    <!-- Enable notification posting for the foreground tracking service on Android 13+. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.health.read_sleep" />
     <uses-permission android:name="android.permission.health.write_sleep" />
 
@@ -40,8 +44,7 @@
         <service
             android:name=".tracking.service.TrackingForegroundService"
             android:exported="false"
-            android:foregroundServiceType="location"
-            />
+            android:foregroundServiceType="location" />
     </application>
 
 </manifest>

@@ -13,8 +13,9 @@ navigationRuntimeKtx = "2.9.5"
 navigationCompose = "2.9.5"
 playServicesLocation = "21.3.0"
 roomKtx = "2.8.3"
-
+roomCompiler = "2.8.3"
 [libraries]
+androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "roomCompiler" }
 androidx-connect-client = { module = "androidx.health.connect:connect-client", version.ref = "connectClient" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }

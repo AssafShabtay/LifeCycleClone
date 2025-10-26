@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     id("kotlin-kapt")
+    id("org.jetbrains.kotlin.kapt")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
@@ -43,7 +44,8 @@ android {
 
 dependencies {
 
-
+    implementation(libs.androidx.room.ktx) // runtime + coroutines support
+    kapt(libs.androidx.room.compiler)
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.2") // Use the latest version
     implementation(libs.androidx.connect.client)
     implementation(libs.androidx.core.ktx)

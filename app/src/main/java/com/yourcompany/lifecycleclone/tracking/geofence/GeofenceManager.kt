@@ -36,8 +36,12 @@ class GeofenceManager(private val context: Context) {
         }
 
         try {
-            // First remove any existing geofences to avoid duplicates
             geofencingClient.removeGeofences(getPendingIntent()).addOnCompleteListener {
+                if (places.isEmpty()) {
+                    Log.i(TAG, "registerGeofences() skipped: no saved places to register.")
+                    return@addOnCompleteListener
+                }
+
                 val geofences = places.map { place ->
                     Geofence.Builder()
                         .setRequestId(place.placeId.toString())
