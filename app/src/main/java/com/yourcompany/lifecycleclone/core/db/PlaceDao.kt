@@ -18,6 +18,13 @@ interface PlaceDao {
     @Query("SELECT * FROM places")
     suspend fun getAll(): List<PlaceEntity>
 
+    /**
+     * Returns the first place whose [category] matches the given value, or null if no such
+     * place exists.  Useful for locating special categories like "walking" or "driving".
+     */
+    @Query("SELECT * FROM places WHERE category = :category LIMIT 1")
+    suspend fun getPlaceByCategory(category: String): PlaceEntity?
+
     @Query("DELETE FROM places WHERE placeId = :placeId")
     suspend fun delete(placeId: Long)
 }

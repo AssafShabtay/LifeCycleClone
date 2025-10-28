@@ -3,7 +3,6 @@ package com.yourcompany.lifecycleclone.ui.screens
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -18,21 +17,29 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.ZonedDateTime
+import java.time.DayOfWeek
 
 /**
- * ViewModel backing the insights screen. It exposes a [StateFlow] of category breakdowns
- * for the current ISO week (Monday–Sunday).
+ * ViewModel backing the insights screen.
+ *
+ * Exposes:
+ * - weeklyBreakdown: breakdown by category for the current ISO week (Mon–Sun)
+ * - sleepCorrelations: correlation between last activity and sleep
  */
 class InsightsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val insightsRepository: InsightsRepository
+
     val weeklyBreakdown: StateFlow<List<CategoryBreakdown>>
 
-    // Correlations between sleep sessions and last activity before sleep
-    private val _sleepCorrelations = MutableStateFlow<List<SleepCorrelation>>(emptyList())
+    // Correlations between sleep sessions and the last activity before sleep
+    private val _sleepCorrelations =
+        MutableStateFlow<List<SleepCorrelation>>(emptyList())
     val sleepCorrelations: StateFlow<List<SleepCorrelation>> get() = _sleepCorrelations
 
     init {
+        // You only need to grab the DB once
         val db = AppDatabase.getInstance(application)
         val visitDao = db.visitDao()
         val sleepSessionDao = db.sleepSessionDao()
@@ -40,35 +47,41 @@ class InsightsViewModel(application: Application) : AndroidViewModel(application
         val visitRepository = VisitRepository(visitDao)
         insightsRepository = InsightsRepository(visitDao)
 
-        // Determine current ISO week range [startOfWeekMillis, endOfWeekMillis)
-        val now = java.time.ZonedDateTime.now()
-        val startOfWeek = now.toLocalDate()
-            .with(java.time.DayOfWeek.MONDAY)
+        // Figure out the current ISO week range [startOfWeek, endOfWeek)
+        val now: ZonedDateTime = ZonedDateTime.now()
+
+        // Move "now" to Monday of this week, then snap to start of that day in the same zone
+        val startOfWeekMillis = now
+            .with(java.time.temporal.TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+            .toLocalDate()
             .atStartOfDay(now.zone)
             .toInstant()
             .toEpochMilli()
-        val endOfWeek =
-            startOfWeek + 7L * 24L * 60L * 60L * 1000L // start + 7 days in ms
 
-        // Stream the weekly breakdown
-        weeklyBreakdown = visitRepository.observeVisitsInRange(startOfWeek, endOfWeek)
+        val endOfWeekMillis =
+            startOfWeekMillis + 7L * 24L * 60L * 60L * 1000L // +7 days in ms
+
+        // Flow<List<CategoryBreakdown>> -> StateFlow<List<CategoryBreakdown>>
+        weeklyBreakdown = visitRepository
+            .observeVisitsInRange(startOfWeekMillis, endOfWeekMillis)
             .map {
-                // Recompute breakdown for that range
+                // Recompute the breakdown whenever visits change.
                 runCatching {
-                    insightsRepository.getBreakdown(startOfWeek, endOfWeek)
+                    insightsRepository.getBreakdown(startOfWeekMillis, endOfWeekMillis)
                 }.getOrElse { emptyList() }
             }
             .stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(5_000),
-                initialValue = emptyList()
+                // IMPORTANT: give the compiler the concrete type
+                initialValue = emptyList<CategoryBreakdown>()
             )
 
-        // One-shot correlation calculation
+        // One-off load of correlations for this week
         viewModelScope.launch {
             val correlations = insightsRepository.getSleepCorrelations(
-                startOfWeek,
-                endOfWeek,
+                startOfWeekMillis,
+                endOfWeekMillis,
                 sleepSessionDao
             )
             _sleepCorrelations.value = correlations
@@ -78,8 +91,12 @@ class InsightsViewModel(application: Application) : AndroidViewModel(application
     companion object {
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
-                // Pull the Application out of CreationExtras using APPLICATION_KEY
-                val app = this[APPLICATION_KEY] as Application
+                // Use ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY,
+                // not AndroidViewModel.APPLICATION_KEY
+                val app = this[
+                    ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY
+                ] as Application
+
                 InsightsViewModel(app)
             }
         }

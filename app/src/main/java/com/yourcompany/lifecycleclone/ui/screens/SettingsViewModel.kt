@@ -1,33 +1,43 @@
 package com.yourcompany.lifecycleclone.ui.screens
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.yourcompany.lifecycleclone.premium.PremiumRepository
 import com.yourcompany.lifecycleclone.core.db.AppDatabase
 import com.yourcompany.lifecycleclone.premium.BackupManager
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import com.yourcompany.lifecycleclone.premium.PremiumRepository
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import androidx.lifecycle.viewModelScope
-import android.net.Uri
 
 /**
- * ViewModel backing the settings screen.  It exposes premium status and provides methods
- * to toggle premium as well as export and import data backups.  Backup operations are
- * asynchronous and should be called from the UI with proper user interaction (e.g. using
- * Storage Access Framework to pick a destination URI).
+ * ViewModel backing the settings screen.
+ *
+ * Exposes:
+ * - isPremium: current premium status
+ * - togglePremium(): flip premium on/off (for testing / dev)
+ * - exportBackup() / importBackup(): run backup I/O to/from a Uri
+ *
+ * Backup operations should be triggered from UI after SAF gives you a Uri.
  */
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
-    private val premiumRepository = PremiumRepository(application)
-    private val backupManager = BackupManager(application, AppDatabase.getInstance(application))
 
+    private val premiumRepository = PremiumRepository(application)
+    private val backupManager =
+        BackupManager(application, AppDatabase.getInstance(application))
+
+    // Mirror the repository flow into a StateFlow scoped to the VM.
     val isPremium: StateFlow<Boolean> = premiumRepository.isPremium
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false
+        )
 
     fun togglePremium() {
         premiumRepository.togglePremium()
@@ -50,8 +60,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     companion object {
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
-                val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as Application
-
+                // IMPORTANT: use the correct APPLICATION_KEY
+                val app = this[
+                    ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY
+                ] as Application
                 SettingsViewModel(app)
             }
         }

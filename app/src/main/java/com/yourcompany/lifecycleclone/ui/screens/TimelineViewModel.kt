@@ -7,34 +7,45 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.yourcompany.lifecycleclone.core.db.AppDatabase
+import com.yourcompany.lifecycleclone.core.db.VisitWithPlace
 import com.yourcompany.lifecycleclone.core.repository.VisitRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 
 /**
- * ViewModel backing the timeline screen.  It exposes a [StateFlow] of visits for the current
- * day.  Dependencies are obtained from the [Application] context via [AppDatabase].
+ * ViewModel backing the timeline screen.
+ *
+ * Exposes today's visits (with associated place info) as a StateFlow.
  */
 class TimelineViewModel(application: Application) : AndroidViewModel(application) {
+
     private val visitRepository: VisitRepository
-    val todayVisits: StateFlow<List<com.yourcompany.lifecycleclone.core.db.VisitWithPlace>>
+
+    val todayVisits: StateFlow<List<VisitWithPlace>>
 
     init {
         val dao = AppDatabase.getInstance(application).visitDao()
         visitRepository = VisitRepository(dao)
+
+        // observeTodayVisits() is assumed to be Flow<List<VisitWithPlace>>
         todayVisits = visitRepository.observeTodayVisits()
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5_000),
+                initialValue = emptyList<VisitWithPlace>()
+            )
     }
 
     companion object {
         /**
-         * Factory that allows this ViewModel to be created with the context of the application.
+         * Factory that allows this ViewModel to be created with the application context.
          */
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
-                val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as Application
-
+                val app = this[
+                    ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY
+                ] as Application
                 TimelineViewModel(app)
             }
         }

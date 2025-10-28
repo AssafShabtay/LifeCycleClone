@@ -12,40 +12,57 @@ import com.yourcompany.lifecycleclone.core.repository.PlaceRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collectLatest
 
 /**
- * ViewModel for the places screen.  It loads all places from the database and exposes them as
- * state.  It also provides operations to add and remove places.  Editing the name or radius
- * would require additional DAO methods and is left as future work.
+ * ViewModel for the places screen.
+ *
+ * - Exposes a list of all saved places as StateFlow.
+ * - Allows adding and deleting places.
  */
 class PlacesViewModel(application: Application) : AndroidViewModel(application) {
+
     private val repository: PlaceRepository
+
     private val _places = MutableStateFlow<List<PlaceEntity>>(emptyList())
     val places: StateFlow<List<PlaceEntity>> get() = _places
 
     init {
         val dao = AppDatabase.getInstance(application).placeDao()
         repository = PlaceRepository(dao)
-        refreshPlaces()
+        startObservingPlaces()
     }
 
-    private fun refreshPlaces() {
+    /**
+     * Start collecting the Flow from the repository and mirror it into _places.
+     * This runs in viewModelScope so it cancels automatically when the VM is cleared.
+     */
+    private fun startObservingPlaces() {
         viewModelScope.launch {
-            repository.observeAllPlaces().collect { list ->
+            repository.observeAllPlaces().collectLatest { list ->
                 _places.value = list
             }
         }
     }
 
-    fun addPlace(label: String, latitude: Double, longitude: Double, category: String) {
+    /**
+     * Insert a new place with some default radius/color.
+     * radiusMeters and colorArgb defaults can later become user-editable.
+     */
+    fun addPlace(
+        label: String,
+        latitude: Double,
+        longitude: Double,
+        category: String
+    ) {
         viewModelScope.launch {
             val place = PlaceEntity(
                 label = label,
                 latitude = latitude,
                 longitude = longitude,
-                radiusMeters = 200f,
+                radiusMeters = 200f,     // default ~200m geofence
                 category = category,
-                colorArgb = 0xFF6A8CAF // default color; should be random or chosen by user
+                colorArgb = 0xFF6A8CAF // make sure it's Int if your column is Int
             )
             repository.insertPlace(place)
         }
@@ -60,8 +77,10 @@ class PlacesViewModel(application: Application) : AndroidViewModel(application) 
     companion object {
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
-                val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as Application
-
+                // IMPORTANT: pull Application using ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY
+                val app = this[
+                    ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY
+                ] as Application
                 PlacesViewModel(app)
             }
         }

@@ -1,58 +1,41 @@
-package com.yourcompany.lifecycleclone.ui.components
-
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.minDimension
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.yourcompany.lifecycleclone.insights.CategoryBreakdown
+import androidx.core.text.color
+import com.yourcompany.lifecycleclone.ui.components.ChartSegment
 
-/**
- * Simple donut chart implementation using a [Canvas].  It draws a ring segmented by
- * [CategoryBreakdown] values.  Colors are generated deterministically based on the category
- * hash.  For a more polished look you might inject your own palette or use the colors
- * specified in [PlaceEntity].
- */
+
 @Composable
 fun DonutChart(
-    segments: List<CategoryBreakdown>,
+    segments: List<ChartSegment>,
     modifier: Modifier = Modifier,
-    diameter: Dp = 200.dp
+    size: Dp = 200.dp
 ) {
-    Canvas(modifier = modifier.size(diameter)) {
-        // totalMinutes must not be 0 to avoid NaN sweeps
-        val totalMinutes = segments.sumOf { it.totalMinutes }.coerceAtLeast(1)
-
+    Canvas(modifier = modifier.size(size)) {
+        val strokeWidth = this.size.minDimension * 0.15f
         var startAngle = -90f
 
-        // `size` here is DrawScope.size (in px) now that our param isn't called `size`
-        val strokeWidth = size.minDimension * 0.15f
-
-        segments.forEach { segment ->
-            val sweep = (segment.totalMinutes.toFloat() / totalMinutes.toFloat()) * 360f
-            // Force opaque color from hash (ensures alpha = 0xFF)
-            val color = Color(segment.category.hashCode() or 0xFF000000.toInt())
-
-            drawArc(
-                color = color,
-                startAngle = startAngle,
-                sweepAngle = sweep,
-                useCenter = false,
-                topLeft = Offset.Zero,
-                size = Size(size.minDimension, size.minDimension),
-                style = Stroke(
-                    width = strokeWidth,
-                    cap = StrokeCap.Round
+        // Use inset to create padding for the stroke.
+        // The drawing operations inside this block will be in the new, smaller bounds.
+        inset(strokeWidth / 2) {
+            segments.forEach { segment ->
+                val sweep = segment.fraction * 360f
+                drawArc(
+                    color = segment.color,
+                    startAngle = startAngle,
+                    sweepAngle = sweep,
+                    useCenter = false,
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
                 )
-            )
-
-            startAngle += sweep
+                startAngle += sweep
+            }
         }
     }
 }

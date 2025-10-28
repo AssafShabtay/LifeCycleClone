@@ -1,5 +1,6 @@
 package com.yourcompany.lifecycleclone.ui.screens
 
+import DonutChart
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -11,7 +12,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.yourcompany.lifecycleclone.ui.components.DonutChart
+import com.yourcompany.lifecycleclone.ui.components.ChartSegment
+import com.yourcompany.lifecycleclone.ui.util.getColorForCategory
 
 /**
  * Insights screen summarising the user's time distribution across categories for the current week.
@@ -40,19 +42,32 @@ fun InsightsScreen(navController: NavController) {
                 Text("No data yet. Tracking will populate your insights.")
             }
         } else {
+            // Prepare chart segments with colours
+            val chartSegments = breakdown.map { segment ->
+                val color = getColorForCategory(segment.category)
+                ChartSegment(label = segment.category, fraction = segment.percentOfInterval, color = color)
+            }
             // Render donut chart and legend
             DonutChart(
-                segments = breakdown,
+                segments = chartSegments,
                 modifier = Modifier.align(Alignment.CenterHorizontally),
-                diameter = 200.dp
+                size = 200.dp
             )
             Spacer(modifier = Modifier.height(16.dp))
             breakdown.forEach { segment ->
                 val percent = segment.percentOfInterval * 100f
-                Text(
-                    text = String.format("%s – %.1f%% (%.1f h)", segment.category, percent, segment.totalMinutes / 60f),
-                    style = MaterialTheme.typography.bodySmall
-                )
+                val colorBoxSize = 12.dp
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.foundation.Canvas(modifier = Modifier
+                        .size(colorBoxSize)
+                        .padding(end = 4.dp)) {
+                        drawRect(color = getColorForCategory(segment.category))
+                    }
+                    Text(
+                        text = String.format("%s – %.1f%% (%.1f h)", segment.category, percent, segment.totalMinutes / 60f),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
 
             // Display sleep correlations if available
@@ -79,3 +94,13 @@ fun InsightsScreen(navController: NavController) {
         }
     }
 }
+
+/**
+ * Provides a deterministic colour for each activity category.  Known categories map to
+ * Material style colours for a more harmonious palette.  Unknown categories are hashed
+ * into the colour space to provide a stable but unique colour.
+ */
+/*
+ * Colour helper moved to [com.yourcompany.lifecycleclone.ui.util.getColorForCategory].
+ * This private copy has been removed to avoid duplication.  See that file for details.
+ */
