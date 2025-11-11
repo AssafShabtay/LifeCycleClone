@@ -1,6 +1,7 @@
-package com.yourcompany.lifecycleclone
+﻿package com.yourcompany.lifecycleclone
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -11,31 +12,23 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.core.content.ContextCompat
+import com.yourcompany.lifecycleclone.settings.TrackingController
 import com.yourcompany.lifecycleclone.ui.LifeCycleCloneApp
 
 class MainActivity : ComponentActivity() {
 
-    private val basePermissionsLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { results ->
-        val denied = results.filterValues { granted -> !granted }.keys
-        if (denied.isNotEmpty()) {
-            Toast.makeText(
-                this,
-                "Some permissions were denied. Features may be limited until granted in Settings.",
-                Toast.LENGTH_LONG
-            ).show()
-        }
-        requestBackgroundLocationIfNeeded()
-    }
+    private var permissionsFlowInFlight: Boolean = false
 
-    private val backgroundLocationLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (!granted && !shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_BACKGROUND_LOCATION)) {
+    private val permissionsLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        permissionsFlowInFlight = false
+        if (hasAllTrackingPermissions()) {
+            startTrackingIfPermitted()
+        } else {
             Toast.makeText(
                 this,
-                "Background location is required for automatic visit tracking. Enable it in Settings if you change your mind.",
+                "Tracking stays paused until all permissions are granted.",
                 Toast.LENGTH_LONG
             ).show()
         }
@@ -43,7 +36,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        requestRuntimePermissions()
+
+        if (!hasAllTrackingPermissions()) {
+            launchPermissionsFlow()
+        } else {
+            startTrackingIfPermitted()
+        }
+
         setContent {
             MaterialTheme {
                 Surface {
@@ -53,51 +52,37 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun requestRuntimePermissions() {
-        val permissionsToRequest = mutableSetOf<String>()
-
-        if (!hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)) {
-            permissionsToRequest += Manifest.permission.ACCESS_FINE_LOCATION
-        }
-        if (!hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION)) {
-            permissionsToRequest += Manifest.permission.ACCESS_COARSE_LOCATION
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-            !hasPermission(Manifest.permission.ACTIVITY_RECOGNITION)
-        ) {
-            permissionsToRequest += Manifest.permission.ACTIVITY_RECOGNITION
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (!hasPermission(Manifest.permission.READ_MEDIA_IMAGES)) {
-                permissionsToRequest += Manifest.permission.READ_MEDIA_IMAGES
-            }
-            if (!hasPermission(Manifest.permission.READ_MEDIA_VIDEO)) {
-                permissionsToRequest += Manifest.permission.READ_MEDIA_VIDEO
-            }
-            if (!hasPermission(Manifest.permission.POST_NOTIFICATIONS)) {
-                permissionsToRequest += Manifest.permission.POST_NOTIFICATIONS
-            }
-        }
-
-        if (permissionsToRequest.isNotEmpty()) {
-            basePermissionsLauncher.launch(permissionsToRequest.toTypedArray())
-        } else {
-            requestBackgroundLocationIfNeeded()
+    override fun onResume() {
+        super.onResume()
+        if (hasAllTrackingPermissions()) {
+            startTrackingIfPermitted()
         }
     }
 
-    private fun requestBackgroundLocationIfNeeded() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+    private fun launchPermissionsFlow() {
+        if (permissionsFlowInFlight) return
+        permissionsFlowInFlight = true
+        permissionsLauncher.launch(Intent(this, PermissionsActivity::class.java))
+    }
+
+    private fun startTrackingIfPermitted() {
+        if (!hasAllTrackingPermissions()) {
+            launchPermissionsFlow()
             return
         }
-        if (!hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)) {
-            return
-        }
-        if (!hasPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION)) {
-            backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-        }
+        TrackingController.startTracking(this)
+    }
+
+    private fun hasAllTrackingPermissions(): Boolean {
+        val hasForeground = hasPermission(Manifest.permission.ACCESS_FINE_LOCATION) ||
+            hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
+        val backgroundOk = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+            hasPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        val activityOk = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+            hasPermission(Manifest.permission.ACTIVITY_RECOGNITION)
+        val notificationsOk = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            hasPermission(Manifest.permission.POST_NOTIFICATIONS)
+        return hasForeground && backgroundOk && activityOk && notificationsOk
     }
 
     private fun hasPermission(permission: String): Boolean {

@@ -43,7 +43,7 @@ android {
 }
 
 dependencies {
-
+    implementation("androidx.compose.material:material-icons-extended:1.6.7") // Use the latest stable version
     implementation(libs.androidx.room.ktx) // runtime + coroutines support
     kapt(libs.androidx.room.compiler)
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.2") // Use the latest version

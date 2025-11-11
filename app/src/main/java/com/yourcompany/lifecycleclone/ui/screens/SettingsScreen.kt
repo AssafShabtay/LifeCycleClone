@@ -6,27 +6,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.yourcompany.lifecycleclone.settings.TrackingController
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yourcompany.lifecycleclone.premium.PremiumRepository
 import com.yourcompany.lifecycleclone.premium.BackupManager
 import com.yourcompany.lifecycleclone.ui.screens.SettingsViewModel
 
 /**
- * Settings screen providing controls for privacy, backup and tracking.  Users can start or
- * stop automatic tracking via the buttons below.  Additional settings (backup, premium)
+ * Settings screen providing controls for privacy, backup and tracking. Automatic visit
+ * logging runs continuously once permissions are granted. Additional settings (backup, premium)
  * can be added here in future updates.
  */
 @Composable
 fun SettingsScreen(navController: NavController) {
-    val context = LocalContext.current
     val viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory)
     val isPremium = viewModel.isPremium.collectAsState().value
     Column(
@@ -39,12 +33,10 @@ fun SettingsScreen(navController: NavController) {
             text = "Settings",
             style = MaterialTheme.typography.titleMedium
         )
-        Button(onClick = { TrackingController.startTracking(context) }) {
-            Text("Start Tracking")
-        }
-        Button(onClick = { TrackingController.stopTracking(context) }) {
-            Text("Stop Tracking")
-        }
+        Text(
+            text = "Automatic tracking is active whenever required permissions are granted.",
+            style = MaterialTheme.typography.bodyMedium
+        )
         // Premium subscription toggle
         Spacer(modifier = Modifier.height(16.dp))
         Text(
@@ -61,3 +53,4 @@ fun SettingsScreen(navController: NavController) {
         )
     }
 }
+

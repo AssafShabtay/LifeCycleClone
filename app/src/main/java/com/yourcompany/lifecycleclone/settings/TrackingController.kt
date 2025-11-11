@@ -1,22 +1,22 @@
-package com.yourcompany.lifecycleclone.settings
+﻿package com.yourcompany.lifecycleclone.settings
 
 import android.content.Context
 import android.content.Intent
-import com.yourcompany.lifecycleclone.tracking.service.TrackingForegroundService
+import androidx.core.content.ContextCompat
+import com.yourcompany.lifecycleclone.tracking.service.LocationService
 
 /**
- * Simple utility to start and stop the tracking foreground service.  This can be used by the
- * settings screen to toggle automatic tracking on and off.  The service runs with a
- * foreground notification due to background location restrictions on modern Android.
+ * Simple utility to start and stop the tracking foreground service. Settings can toggle automatic
+ * tracking through this helper.
  */
 object TrackingController {
     fun startTracking(context: Context) {
-        val intent = Intent(context, TrackingForegroundService::class.java)
-        context.startForegroundService(intent)
+        val intent = Intent(context, LocationService::class.java)
+        ContextCompat.startForegroundService(context, intent)
     }
 
     fun stopTracking(context: Context) {
-        val intent = Intent(context, TrackingForegroundService::class.java)
+        val intent = Intent(context, LocationService::class.java)
         context.stopService(intent)
     }
 }
