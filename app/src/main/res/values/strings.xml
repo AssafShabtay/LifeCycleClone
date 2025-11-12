@@ -1,11 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <string name="tracking_notification_title">
-        Location tracking active
-    </string>
-
-    <string name="tracking_notification_content">
-        We’re recording your visits to build your timeline.
-    </string>
-    <string name="app_name">Life Cycle</string>
+    <string name="tracking_notification_title">Location tracking active</string>
+    <string name="tracking_notification_content">We are recording your visits to build your timeline.</string>
+    <string name="app_name">Life Cycle Tracker</string>
+    <string name="main_description">This build keeps a private log of visits by running the tracking service and storing samples in the on-device Room database.</string>
+    <string name="status_permissions_required">Grant location, activity recognition, and notification permissions before tracking can begin.</string>
+    <string name="status_tracking_ready">Permissions granted. You can start the tracking service and close the app at any time.</string>
+    <string name="action_grant_permissions">Grant Permissions</string>
+    <string name="action_start_tracking">Start Tracking Service</string>
+    <string name="database_summary_title">Last 24h timeline</string>
+    <string name="database_summary_placeholder">Waiting for location samples...</string>
+    <string name="legend_untracked_label">Untracked</string>
 </resources>
+
+
+

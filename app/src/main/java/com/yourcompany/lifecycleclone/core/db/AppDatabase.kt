@@ -6,9 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.yourcompany.lifecycleclone.core.model.PlaceEntity
 import com.yourcompany.lifecycleclone.core.model.VisitEntity
-import com.yourcompany.lifecycleclone.core.model.VisitTagEntity
 import com.yourcompany.lifecycleclone.core.model.SleepSessionEntity
-import com.yourcompany.lifecycleclone.core.model.WeeklyJournalEntity
 
 /**
  * The central Room database for the Life Cycle clone.  It defines all entities used in the
@@ -19,18 +17,15 @@ import com.yourcompany.lifecycleclone.core.model.WeeklyJournalEntity
     entities = [
         PlaceEntity::class,
         VisitEntity::class,
-        VisitTagEntity::class,
-        SleepSessionEntity::class,
-        WeeklyJournalEntity::class
+        SleepSessionEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun visitDao(): VisitDao
     abstract fun placeDao(): PlaceDao
     abstract fun sleepSessionDao(): SleepSessionDao
-    abstract fun weeklyJournalDao(): WeeklyJournalDao
 
     companion object {
         @Volatile
